@@ -14,8 +14,8 @@ with open("requirements.txt", "r", encoding="utf-8") as fh:
     requirements = [line.strip() for line in fh if line.strip() and not line.startswith("#")]
 
 setup(
-    name="les-audits-affaires-eval",
-    version="1.0.0",
+    name="les-audits-affaires-eval-harness",
+    version="1.2.0",
     author="LegML Team",
     author_email="contact@legml.ai",
     description="Framework d'évaluation pour les LLM sur le benchmark juridique français Les Audits-Affaires",
