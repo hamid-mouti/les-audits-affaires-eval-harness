@@ -76,6 +76,9 @@ jobs:
         elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
           version_type="${{ github.event.inputs.version_type }}"
           should_release="true"
+        elif [ "$version_type" = "none" ] && [ -n "$commits" ]; then
+          version_type="patch"
+          should_release="true"
         fi
         
         # Calculate new version
