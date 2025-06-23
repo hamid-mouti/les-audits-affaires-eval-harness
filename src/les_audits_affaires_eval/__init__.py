@@ -40,7 +40,8 @@ __all__ = [
 ]
 
 try:
-    from importlib.metadata import version as _pkg_version, PackageNotFoundError
+    from importlib.metadata import PackageNotFoundError
+    from importlib.metadata import version as _pkg_version
 except ImportError:  # pragma: no cover – Python <3.8, unlikely
 
     def _pkg_version(_: str) -> str:
