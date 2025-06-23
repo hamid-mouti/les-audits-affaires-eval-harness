@@ -119,7 +119,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        token: ${{ secrets.AUTO_VERSION_TOKEN }}
+        token: ${{ secrets.AUTO_VERSION_TOKEN || secrets.GITHUB_TOKEN }}
         fetch-depth: 0
         
     - name: Set up Python
@@ -172,8 +172,8 @@ jobs:
         
     - name: 💾 Commit version bump
       run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
+        git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
         
         git add pyproject.toml
         if [ -f CHANGELOG.md ]; then
@@ -184,9 +184,11 @@ jobs:
         git tag -a "v${{ needs.analyze-commits.outputs.new_version }}" -m "Release v${{ needs.analyze-commits.outputs.new_version }}"
         
     - name: 📤 Push changes
-      run: |
-        git push origin main
-        git push origin "v${{ needs.analyze-commits.outputs.new_version }}"
+      uses: ad-m/github-push-action@master
+      with:
+        github_token: ${{ secrets.AUTO_VERSION_TOKEN || secrets.GITHUB_TOKEN }}
+        branch: main
+        tags: true
         
     - name: 📦 Build package
       run: |
