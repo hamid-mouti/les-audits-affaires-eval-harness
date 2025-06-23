@@ -112,10 +112,14 @@ jobs:
     needs: [analyze-commits]
     if: needs.analyze-commits.outputs.should_release == 'true'
     
+    permissions:
+      contents: write
+      pull-requests: write
+    
     steps:
     - uses: actions/checkout@v4
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.AUTO_VERSION_TOKEN }}
         fetch-depth: 0
         
     - name: Set up Python
@@ -202,7 +206,7 @@ jobs:
     - name: 📢 Create GitHub Release
       uses: actions/create-release@v1
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.AUTO_VERSION_TOKEN }}
       with:
         tag_name: v${{ needs.analyze-commits.outputs.new_version }}
         release_name: Release v${{ needs.analyze-commits.outputs.new_version }}
