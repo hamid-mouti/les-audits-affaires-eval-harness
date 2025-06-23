@@ -1,3 +1,12 @@
+## Version 1.2.1
+
+### Changes
+- fixed (0a25d61)
+- fixed (f1d638c)
+- fixed (d0d7aa0)
+- added better work flow execution (53b9265)
+
+**Full Changelog**: https://github.com/legml-ai/les-audits-affaires-eval-harness/compare/v1.2.0...v1.2.1
 ## Version 1.2.0
 
 ### Changes

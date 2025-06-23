@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "les-audits-affaires-eval-harness"
-version = "1.2.0"
+version = "1.2.1"
 description = "Evaluation harness for Les Audits-Affaires LLM benchmark"
 authors = [{ name = "LegML Team", email = "contact@legml.ai" }]
 readme = "README.md"
