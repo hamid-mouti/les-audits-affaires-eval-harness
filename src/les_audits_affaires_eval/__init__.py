@@ -9,6 +9,7 @@ Evaluation framework for Large Language Models on the French legal benchmark
 """
 
 __version__ = "1.1.0"
+# __version__ will be set dynamically below
 __author__ = "LegML Team"
 __email__ = "contact@legml.ai"
 
@@ -37,3 +38,16 @@ __all__ = [
     "create_score_distribution_plot",
     "export_results_to_excel",
 ]
+
+try:
+    from importlib.metadata import version as _pkg_version, PackageNotFoundError
+except ImportError:  # pragma: no cover – Python <3.8, unlikely
+    def _pkg_version(_: str) -> str:
+        return "0.0.0"
+    class PackageNotFoundError(Exception):
+        pass
+
+try:
+    __version__ = _pkg_version("les-audits-affaires-eval-harness")
+except PackageNotFoundError:
+    __version__ = "0.0.0"
