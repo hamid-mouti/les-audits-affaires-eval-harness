@@ -42,10 +42,13 @@ __all__ = [
 try:
     from importlib.metadata import version as _pkg_version, PackageNotFoundError
 except ImportError:  # pragma: no cover – Python <3.8, unlikely
+
     def _pkg_version(_: str) -> str:
         return "0.0.0"
+
     class PackageNotFoundError(Exception):
         pass
+
 
 try:
     __version__ = _pkg_version("les-audits-affaires-eval-harness")
