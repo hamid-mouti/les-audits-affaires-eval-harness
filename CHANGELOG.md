@@ -1,3 +1,9 @@
+## Version 1.3.1
+
+### Changes
+- style: sort imports with isort for CI compliance (c3ddf60)
+
+**Full Changelog**: https://github.com/legml-ai/les-audits-affaires-eval-harness/compare/v1.3.0...v1.3.1
 ## Version 1.3.0
 
 ### Changes
