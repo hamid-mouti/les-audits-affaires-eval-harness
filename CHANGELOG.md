@@ -1,3 +1,12 @@
+## Version 1.2.0
+
+### Changes
+- fix: remove token parameter from checkout to prevent auth errors (a58c092)
+- fix: improve workflow permissions and authentication (2408714)
+- added better work flow execution (1dc6767)
+- feat: initial release of Les Audits-Affaires Evaluation Harness (3ea81db)
+
+**Full Changelog**: https://github.com/legml-ai/les-audits-affaires-eval-harness/compare/...v1.2.0
 # Changelog
 
 All notable changes to the Les Audits-Affaires Evaluation Harness will be documented in this file.
