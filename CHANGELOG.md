@@ -1,3 +1,20 @@
+## Version 1.3.0
+
+### Changes
+- style: format code with black for CI compliance (92fcf56)
+- fixed (6e426ff)
+- 🔖 Bump version to 1.2.1 (3503aab)
+- fixed (0a25d61)
+- fixed (f1d638c)
+- fixed (d0d7aa0)
+- added better work flow execution (53b9265)
+- 🔖 Bump version to 1.2.0 (12af045)
+- fix: remove token parameter from checkout to prevent auth errors (a58c092)
+- fix: improve workflow permissions and authentication (2408714)
+- added better work flow execution (1dc6767)
+- feat: initial release of Les Audits-Affaires Evaluation Harness (3ea81db)
+
+**Full Changelog**: https://github.com/legml-ai/les-audits-affaires-eval-harness/compare/...v1.3.0
 ## Version 1.2.1
 
 ### Changes
