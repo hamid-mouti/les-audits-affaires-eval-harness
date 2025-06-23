@@ -8,7 +8,7 @@ Evaluation framework for Large Language Models on the French legal benchmark
 'Les Audits-Affaires' from legmlai.
 """
 
-__version__ = "1.3.1"
+__version__ = "1.3.2"
 # __version__ will be set dynamically below
 __author__ = "LegML Team"
 __email__ = "contact@legml.ai"
