@@ -269,4 +269,51 @@ Licence MIT - voir le fichier LICENSE pour les détails.
 2. Lancez `lae-eval info` pour vérifier la configuration
 3. Testez avec `--max-samples 1` d'abord
 4. Vérifiez `evaluation.log` pour les messages d'erreur détaillés
-5. Ouvrez une issue si les problèmes persistent 
+5. Ouvrez une issue si les problèmes persistent
+
+## Traitement Automatisé des Requêtes
+
+Le script `scripts/laal_pipeline.py` permet de traiter automatiquement les requêtes en attente (dataset **legmlai/laal-requests**) puis de publier les résultats dans **legmlai/laal-results**.
+
+1. Authentification HuggingFace :
+```bash
+export HF_TOKEN=<votre_token_hf>
+```
+
+2. Définir la cible à évaluer :
+
+• **Modèle hébergé (OpenAI, Mistral, Claude, Gemini, …)**
+```bash
+export EXTERNAL_PROVIDER=openai   # openai | mistral | claude | gemini
+export EXTERNAL_MODEL=gpt-4o      # identifiant du modèle chez le provider
+```
+
+• **Modèle local**
+```bash
+export MODEL_ENDPOINT=http://localhost:8000/generate
+export MODEL_NAME=mon_modele
+```
+
+3. (Optionnel) Tokens dédiés pour le push des datasets :
+```bash
+export HF_TOKEN_SUMMARY_DATASETS=<token_write_datasets>
+export HF_TOKEN_LEADERBOARD_RESULTS=<token_write_leaderboard>
+```
+
+4. Lancer le pipeline :
+```bash
+# Traiter toutes les requêtes en attente
+python scripts/laal_pipeline.py requests
+
+# Traiter au plus 5 requêtes
+python scripts/laal_pipeline.py requests --max 5
+
+# Exécuter en mode observation (aucun push)
+python scripts/laal_pipeline.py requests --dry-run
+```
+
+Le pipeline se charge de :
+- exécuter l'évaluation pour chaque requête,
+- re-évaluer en lot les échantillons échoués,
+- pousser les scores et le jeu de données résumé,
+- mettre à jour le statut de la requête et le leaderboard. 

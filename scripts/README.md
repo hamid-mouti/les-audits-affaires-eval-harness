@@ -1,79 +1,91 @@
-# Scripts Directory
+# Répertoire `scripts`
 
-This directory contains utility scripts for the Les Audits-Affaires evaluation harness.
+Ce dossier regroupe **tous les utilitaires CLI** du harness d'évaluation *Les Audits-Affaires*.
 
-## Available Scripts
+> ��️ **Langue** : tout est documenté en français pour être cohérent avec le reste du projet.
 
-| Script | Description | Usage |
-|--------|-------------|--------|
-| `test_external_providers.py` | Test all external provider connections with real API calls | `python scripts/test_external_providers.py` |
-| `demo_external_providers.py` | Demo external provider functionality without API calls | `python scripts/demo_external_providers.py` |
-| `example_external_evaluation.py` | Complete evaluation example using external providers | `python scripts/example_external_evaluation.py` |
-| `upload_results.py` | Upload evaluation results to HuggingFace leaderboard dataset | `python scripts/upload_results.py --model_name gpt-4o --provider openai` |
-| `quick_upload.py` | Quick upload with auto-detection of result files | `python scripts/quick_upload.py gpt-4o openai` |
-| `batch_evaluate_and_upload.py` | Batch process all pending requests, evaluate and upload results | `python scripts/batch_evaluate_and_upload.py --simulate` |
+---
 
-## Results Upload Scripts
+## 1. Script principal : `laal_pipeline.py`
 
-### Quick Upload (Recommended)
-```bash
-# Auto-detect and upload results for a model
-python scripts/quick_upload.py gpt-4o openai
-python scripts/quick_upload.py claude-3 anthropic
-python scripts/quick_upload.py llama-3-8b meta
-```
+| Fonction | Description |
+|----------|-------------|
+| `requests` (défaut) | Traite les requêtes en attente dans le dataset **legmlai/laal-requests** puis pousse les scores dans **legmlai/laal-results**. |
+| `local <path>` | Upload des résultats déjà calculés depuis un répertoire local contenant `evaluation_summary.json`. |
+| `clear-results` | Vide complètement la table des résultats (⚠️ irréversible). |
 
-### Manual Upload
-```bash
-# Upload specific results file
-python scripts/upload_results.py --model_name gpt-4o --provider openai --results_file results_openai_gpt-4o.json
+### 1.1 Variables d'environnement (détection automatique)
 
-# Upload from results directory
-python scripts/upload_results.py --model_name gpt-4o --provider openai --results_dir results/gpt_4o/
+Le pipeline vérifie **dynamiquement** ce qui manque et vous demandera les valeurs à la volée ; cependant il est recommandé de tout exporter au préalable :
 
-# With custom request ID
-python scripts/upload_results.py --model_name gpt-4o --provider openai --request_id req_abc123
-```
+| Cas | Variables attendues |
+|-----|---------------------|
+| Tous les cas | `HF_TOKEN` (écriture/lecture datasets) |
+| Modèle **OpenAI** | `OPENAI_API_KEY` |
+| Modèle **Mistral** | `MISTRAL_API_KEY` |
+| Modèle **Claude** | `ANTHROPIC_API_KEY` |
+| Modèle **Gemini** | `GOOGLE_API_KEY` |
+| Modèle **local** | `MODEL_ENDPOINT` |
 
-### Batch Processing
-```bash
-# Process all pending requests with simulation (safe for testing)
-python scripts/batch_evaluate_and_upload.py --simulate --dry-run
+Variables optionnelles :
+- `HF_TOKEN_SUMMARY_DATASETS` : push des datasets résumés → *legmlai/les-audites-affaires-leadboard*.
+- `HF_TOKEN_LEADERBOARD_RESULTS` : mise à jour du leaderboard.
 
-# Process all pending requests (real evaluation required)
-python scripts/batch_evaluate_and_upload.py
-
-# Process maximum 5 requests
-python scripts/batch_evaluate_and_upload.py --max-requests 5
-
-# Clear all requests and start fresh (DANGEROUS!)
-python scripts/batch_evaluate_and_upload.py --clear-requests --dry-run
-```
-
-### Environment Setup for Uploads
-```bash
-# Set HuggingFace token for dataset uploads
-export HF_TOKEN="your_huggingface_token"
-
-# Or create .env file with:
-echo "HF_TOKEN=your_huggingface_token" >> .env
-```
-
-### Workflow for Automated Processing
-
-1. **Run evaluations** and save results to `/results` directory
-2. **Upload individual results**: `python scripts/quick_upload.py model-name provider`
-3. **Batch process pending requests**: `python scripts/batch_evaluate_and_upload.py --simulate`
-
-## Makefile Shortcuts
+### 1.2 Exemples rapides
 
 ```bash
-make test-providers    # Run test_external_providers.py
-make demo-providers    # Run demo_external_providers.py
+# 1) Évaluer un modèle OpenAI et uploader les résultats
+export HF_TOKEN=hf_xxx
+export EXTERNAL_PROVIDER=openai
+export EXTERNAL_MODEL=gpt-4o
+export OPENAI_API_KEY=sk-...
+python scripts/laal_pipeline.py requests
+
+# 2) Même chose mais maximum 3 requêtes
+python scripts/laal_pipeline.py requests --max 3
+
+# 3) Simulation sans push (utile en local)
+python scripts/laal_pipeline.py requests --dry-run
+
+# 4) Upload d'un répertoire local de résultats
+python scripts/laal_pipeline.py local ~/resultats/gpt_4o/
 ```
 
-## Requirements
+---
 
-- External provider scripts require API keys set as environment variables
-- See `.env.example` for required environment variables
-- Use `make setup-providers` for setup instructions 
+## 2. Autres utilitaires
+
+| Script | Rôle principal |
+|--------|----------------|
+| `test_external_providers.py` | Vérifie la connectivité aux API externes (clé valide, quota, etc.). |
+| `demo_external_providers.py` | Démonstration *offline* des formats attendus. |
+| `example_external_evaluation.py` | Évaluation complète d'un petit échantillon pour prise en main. |
+| `quick_upload.py` | Détection automatique du dernier dossier de résultats et upload. |
+| `upload_results.py` | Upload manuel d'un fichier ou dossier précis. |
+| `batch_evaluate_and_upload.py` | Ancien wrapper : traite en boucle les requêtes (désormais remplacé par `laal_pipeline.py`). |
+
+---
+
+## 3. Makefile shortcuts
+
+```bash
+make test-providers   # Lance test_external_providers.py
+make demo-providers   # Lance demo_external_providers.py
+```
+
+---
+
+## 4. FAQ rapide
+
+**Q : Faut-il absolument renseigner toutes les variables ?**  
+R : Non. Le pipeline détecte ce qu'il manque et vous le demandera. Néanmoins, en exécution non-interactive (par ex. via Cron ou CI), il est crucial d'exporter toutes les variables nécessaires.
+
+**Q : Où sont stockées les requêtes ?**  
+`legmlai/laal-requests` sur le Hub : chaque entrée contient `model_name`, `model_provider`, `request_status`, etc.
+
+**Q : Comment voir le leaderboard ?**  
+[LegML.ai – Les Audits-Affaires Leaderboard](https://huggingface.co/spaces/legmlai/les-audites-affaires-leadboard)
+
+---
+
+> ✨ *Bon benchmark !* 
