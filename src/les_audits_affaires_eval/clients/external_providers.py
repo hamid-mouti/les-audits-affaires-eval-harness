@@ -296,11 +296,14 @@ Question: {question}"""
 # Factory function for easy client creation
 def create_client(provider: str, **kwargs):
     """Factory function to create clients for different providers"""
+    from .rag_client import RAGClient
+
     providers = {
         "openai": OpenAIClient,
         "mistral": MistralClient,
         "claude": ClaudeClient,
         "gemini": GeminiClient,
+        "rag": RAGClient,
     }
 
     if provider.lower() not in providers:
