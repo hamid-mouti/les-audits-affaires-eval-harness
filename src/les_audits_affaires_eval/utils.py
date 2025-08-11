@@ -300,8 +300,6 @@ def export_results_to_excel(results: Dict[str, Any], output_file: str = None):
         challenging_df = pd.DataFrame(challenging_data)
         challenging_df.to_excel(writer, sheet_name="Challenging_Samples", index=False)
 
-    print(f"Excel report saved to: {output_file}")
-
 
 def main():
     """Main function for analysis utilities"""

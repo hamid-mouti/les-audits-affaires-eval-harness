@@ -105,10 +105,12 @@ Question: {question}"""
                     headers["Authorization"] = f"Bearer {self.access_token}"
                     async with self.session.post(self.endpoint, json=payload, headers=headers) as retry_response:
                         retry_response.raise_for_status()
-                        return await retry_response.text()
+                        data = await retry_response.json()
+                        return data["response"]
 
                 response.raise_for_status()
-                return await response.text()
+                data = await response.json()
+                return data["response"]
         except Exception as e:
             logger.error(f"Error generating response from RAG pipeline: {e}")
             raise
@@ -116,18 +118,16 @@ Question: {question}"""
     def generate_response_sync(self, question: str) -> str:
         """Synchronous version of generate_response with full auth flow."""
         self._fetch_token_sync() # Always fetch a fresh token for sync calls
+        logger.info("Calling generate_response_sync with question: %s", question)
 
         headers = {"Authorization": f"Bearer {self.access_token}"}
         prompt = self._format_legal_prompt(question)
         payload = {"question": prompt}
         try:
-            response = requests.post(self.endpoint, json=payload, headers=headers, stream=True)
+            response = requests.post(self.endpoint, json=payload, headers=headers)
             response.raise_for_status()
-            response_text_chunks = []
-            for chunk in response.iter_content(chunk_size=None):
-                if chunk:
-                    response_text_chunks.append(chunk.decode("utf-8"))
-            return "".join(response_text_chunks)
+            data = response.json()
+            return data["response"]
         except Exception as e:
             logger.error(f"Sync: Error generating response from RAG pipeline: {e}")
             raise

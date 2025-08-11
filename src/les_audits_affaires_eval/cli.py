@@ -102,40 +102,49 @@ def _cmd_test_providers(args: argparse.Namespace) -> None:
 
 def _cmd_analyze(args: argparse.Namespace) -> None:
     """Analyze existing evaluation results"""
-    results_file = args.results_file
-    if not results_file:
-        # Try to find results file automatically
+    results_files = []
+    if args.results_file:
+        if Path(args.results_file).exists():
+            results_files.append(args.results_file)
+        else:
+            print(f"❌ Results file not found at: {args.results_file}")
+            sys.exit(1)
+    else:
+        # Try to find results files automatically
         results_dir = Path("results")
         if results_dir.exists():
-            for subdir in results_dir.iterdir():
+            for subdir in sorted(results_dir.iterdir()):
                 if subdir.is_dir():
                     potential_file = subdir / "evaluation_results.json"
                     if potential_file.exists():
-                        results_file = str(potential_file)
-                        break
+                        results_files.append(str(potential_file))
 
-    if not results_file or not Path(results_file).exists():
-        print("❌ No results file found. Use --results-file or run evaluation first.")
+    if not results_files:
+        print("❌ No results files found. Use --results-file or run evaluation first.")
         sys.exit(1)
 
-    print(f"📊 Analyzing results from: {results_file}")
-    results = load_evaluation_results(results_file)
+    for results_file in results_files:
+        print(f"\n📊 Analyzing results from: {results_file}")
+        results = load_evaluation_results(results_file)
+        output_dir = Path(results_file).parent
 
-    if args.report:
-        print("📝 Generating analysis report...")
-        generate_analysis_report(results)
-        print("✅ Report generated")
+        if args.report:
+            print("📝 Generating analysis report...")
+            report_path = output_dir / "analysis_report.md"
+            generate_analysis_report(results, output_file=str(report_path))
 
-    if args.plots:
-        print("📈 Creating plots...")
-        create_score_distribution_plot(results)
-        create_correlation_heatmap(results)
-        print("✅ Plots created")
+        if args.plots:
+            print("📈 Creating plots...")
+            dist_plot_path = output_dir / "score_distributions.png"
+            heatmap_path = output_dir / "correlation_heatmap.png"
+            create_score_distribution_plot(results, save_path=str(dist_plot_path))
+            create_correlation_heatmap(results, save_path=str(heatmap_path))
+            print(f"✅ Plots created in {output_dir}")
 
-    if args.excel:
-        print("📋 Exporting to Excel...")
-        export_results_to_excel(results)
-        print("✅ Excel export completed")
+        if args.excel:
+            print("📋 Exporting to Excel...")
+            excel_path = output_dir / "evaluation_results.xlsx"
+            export_results_to_excel(results, output_file=str(excel_path))
 
 
 def _cmd_test_evaluator(args: argparse.Namespace) -> None:

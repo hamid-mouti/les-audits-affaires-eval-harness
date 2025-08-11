@@ -230,6 +230,7 @@ class EvaluatorClient:
         # Check for external evaluator provider first
         self.evaluator_provider = os.getenv("EVALUATOR_PROVIDER", "azure").lower()
         self.evaluator_model = os.getenv("EVALUATOR_MODEL", "gpt-4o")
+        self.session = None
 
         logger.info(
             f"Initializing evaluator with provider: {self.evaluator_provider}, model: {self.evaluator_model}"
@@ -252,6 +253,14 @@ class EvaluatorClient:
                 f"Unknown evaluator provider: {self.evaluator_provider}, falling back to Azure OpenAI"
             )
             self._init_azure_openai()
+
+    async def __aenter__(self):
+        self.session = aiohttp.ClientSession()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self.session:
+            await self.session.close()
 
     def _init_azure_openai(self):
         """Initialize Azure OpenAI evaluator"""
@@ -313,7 +322,7 @@ class EvaluatorClient:
         self.client_type = "local"
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
-    def evaluate_response(
+    async def evaluate_response(
         self, question: str, model_response: str, ground_truth: Dict[str, str]
     ) -> Dict[str, Any]:
         """Evaluate a model response using the configured evaluator"""
@@ -335,7 +344,7 @@ class EvaluatorClient:
             elif self.client_type == "openai":
                 return self._evaluate_openai(evaluation_prompt)
             elif self.client_type == "mistral":
-                return self._evaluate_mistral(evaluation_prompt)
+                return await self._evaluate_mistral(evaluation_prompt)
             elif self.client_type == "claude":
                 return self._evaluate_claude(evaluation_prompt)
             elif self.client_type == "gemini":
@@ -372,8 +381,11 @@ class EvaluatorClient:
         )
         return self._parse_evaluation_response(response.choices[0].message.content)
 
-    def _evaluate_mistral(self, evaluation_prompt: str) -> Dict[str, Any]:
+    async def _evaluate_mistral(self, evaluation_prompt: str) -> Dict[str, Any]:
         """Evaluate using Mistral"""
+
+        if not self.session:
+            raise RuntimeError("Session not initialized for EvaluatorClient. Use async context manager.")
 
         headers = {
             "Authorization": f"Bearer {self.mistral_api_key}",
@@ -388,11 +400,11 @@ class EvaluatorClient:
             "response_format": {"type": "json_object"},
         }
 
-        response = requests.post(self.mistral_endpoint, json=payload, headers=headers, timeout=300)
-        response.raise_for_status()
-
-        result = response.json()
-        return self._parse_evaluation_response(result["choices"][0]["message"]["content"])
+        timeout = aiohttp.ClientTimeout(total=300)
+        async with self.session.post(self.mistral_endpoint, json=payload, headers=headers, timeout=timeout) as response:
+            response.raise_for_status()
+            result = await response.json()
+            return self._parse_evaluation_response(result["choices"][0]["message"]["content"])
 
     def _evaluate_claude(self, evaluation_prompt: str) -> Dict[str, Any]:
         """Evaluate using Claude"""
@@ -581,6 +593,7 @@ class EvaluatorClient:
                 "consequences_non_conformite": "Évaluation échouée",
             },
         }
+
 
 
 class ChatModelClient:

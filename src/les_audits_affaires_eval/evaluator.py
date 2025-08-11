@@ -88,7 +88,7 @@ class LesAuditsAffairesEvaluator:
 
             # Evaluate the response using Azure OpenAI
             eval_start_time = time.time()
-            evaluation = self.evaluator_client.evaluate_response(
+            evaluation = await self.evaluator_client.evaluate_response(
                 question, model_response, ground_truth
             )
             evaluation_time = time.time() - eval_start_time
@@ -350,7 +350,7 @@ class LesAuditsAffairesEvaluator:
                 client_class = ModelClient
             model_client = client_class()
 
-        async with model_client as model_client:
+        async with model_client as model_client, self.evaluator_client:
             self.model_client = model_client
 
             # Only clear previous detailed results if starting from beginning
