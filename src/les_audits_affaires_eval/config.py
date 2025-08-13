@@ -127,14 +127,8 @@ def get_safe_model_name(model_name: str) -> str:
 BASE_RESULTS_DIR = os.getenv("RESULTS_DIR", "results")
 MODEL_SAFE_NAME = get_safe_model_name(MODEL_NAME)
 
-# If a custom RESULTS_DIR is set (like from environment), use it directly
-# Otherwise, create model-specific subdirectory automatically
-if os.getenv("RESULTS_DIR") and os.getenv("RESULTS_DIR") != "results":
-    # Custom results dir is set, use it as-is
-    RESULTS_DIR = os.getenv("RESULTS_DIR")
-else:
-    # Default behavior: create model-specific subdirectory
-    RESULTS_DIR = f"{BASE_RESULTS_DIR}/{MODEL_SAFE_NAME}"
+# Always create a model-specific subdirectory inside the base results directory.
+RESULTS_DIR = os.path.join(BASE_RESULTS_DIR, MODEL_SAFE_NAME)
 
 OUTPUT_FILE = "evaluation_results.json"
 SUMMARY_FILE = "evaluation_summary.json"

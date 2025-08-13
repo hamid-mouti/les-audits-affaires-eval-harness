@@ -173,17 +173,121 @@ def find_best_samples(results: Dict[str, Any], n_samples: int = 10) -> List[Dict
     return sorted_results[:n_samples]
 
 
-def generate_analysis_report(results: Dict[str, Any], output_file: Optional[str] = None) -> str:
+def analyze_rag_performance(
+    rag_results: Dict[str, Any], all_other_results: List[Dict[str, Any]]
+) -> str:
+    """
+    Analyzes the performance of a RAG model compared to other models.
+    Finds the top 20 samples where the RAG model has a high score but is not the top performer.
+    """
+    rag_model_name = rag_results["summary"]["model_name"]
+    report_section = f"### Analysis for RAG Model: {rag_model_name}\n\n"
+
+    # Create a dictionary to store scores and justifications from all models for each sample
+    scores = {}
+
+    # Process RAG model results
+    for result in rag_results["detailed_results"]:
+        sample_idx = result["sample_idx"]
+        if "evaluation" in result and "score_global" in result["evaluation"]:
+            scores[sample_idx] = {
+                "rag_score": result["evaluation"]["score_global"],
+                "rag_justifications": result["evaluation"].get("justifications"),
+                "question": result["question"],
+                "other_scores": {},
+                "other_justifications": {},
+            }
+
+    # Process other models' results
+    for other_results in all_other_results:
+        other_model_name = other_results["summary"]["model_name"]
+        for result in other_results["detailed_results"]:
+            sample_idx = result["sample_idx"]
+            if (
+                sample_idx in scores
+                and "evaluation" in result
+                and "score_global" in result["evaluation"]
+            ):
+                scores[sample_idx]["other_scores"][other_model_name] = result[
+                    "evaluation"
+                ]["score_global"]
+                scores[sample_idx]["other_justifications"][other_model_name] = result[
+                    "evaluation"
+                ].get("justifications")
+
+    # Filter and analyze
+    analysis_results = []
+    for sample_idx, data in scores.items():
+        if "rag_score" in data and data["other_scores"]:
+            max_other_score = max(data["other_scores"].values())
+            if data["rag_score"] < max_other_score:
+                best_other_model = max(data["other_scores"], key=data["other_scores"].get)
+                analysis_results.append(
+                    {
+                        "sample_idx": sample_idx,
+                        "question": data["question"],
+                        "rag_score": data["rag_score"],
+                        "rag_justifications": data.get("rag_justifications"),
+                        "highest_score": max_other_score,
+                        "highest_score_model": best_other_model,
+                        "highest_score_justifications": data.get(
+                            "other_justifications", {}
+                        ).get(best_other_model),
+                    }
+                )
+
+    # Sort by RAG score (descending) and get top 20
+    sorted_results = sorted(analysis_results, key=lambda x: x["rag_score"], reverse=True)[:20]
+
+    if not sorted_results:
+        report_section += (
+            "No samples found where the RAG model was outperformed by another model.\n"
+        )
+        return report_section
+
+    report_section += "Top 20 samples where the RAG model performed well but was not the top performer:\n\n"
+    for result in sorted_results:
+        report_section += f"**Sample Index:** {result['sample_idx']}\n\n"
+        report_section += f"**Question:** {result['question']}\n\n"
+        report_section += f"**{rag_model_name} Score:** {result['rag_score']}\n\n"
+        if result["rag_justifications"]:
+            report_section += f"**Justifications ({rag_model_name}):**\n\n"
+            for category, justification in result["rag_justifications"].items():
+                report_section += (
+                    f"- **{category.replace('_', ' ').title()}:** {justification}\n\n"
+                )
+        report_section += f"**Highest Score:** {result['highest_score']} (Model: {result['highest_score_model']})\n\n"
+        if result["highest_score_justifications"]:
+            report_section += (
+                f"**Justifications ({result['highest_score_model']}):**\n\n"
+            )
+            for category, justification in result[
+                "highest_score_justifications"
+            ].items():
+                report_section += (
+                    f"- **{category.replace('_', ' ').title()}:** {justification}\n\n"
+                )
+        report_section += "---\n\n"
+
+    return report_section
+
+
+def generate_analysis_report(
+    current_results: Dict[str, Any],
+    all_results: List[Dict[str, Any]],
+    output_file: Optional[str] = None,
+) -> str:
     """Generate a comprehensive analysis report"""
     if output_file is None:
         output_file = os.path.join(RESULTS_DIR, "analysis_report.md")
 
-    summary = results["summary"]
+    summary = current_results["summary"]
+    model_name = summary["model_name"]
 
     report = f"""# Les Audits-Affaires Evaluation Report
 
 ## Model Information
-- **Model Name**: {summary['model_name']}
+- **Model Name**: {model_name}
 - **Dataset**: {summary['dataset_name']}
 - **Evaluation Date**: {summary['evaluation_timestamp']}
 - **Total Samples**: {summary['sample_count']}
@@ -228,22 +332,32 @@ def generate_analysis_report(results: Dict[str, Any], output_file: Optional[str]
     report += f"- **Most challenging category**: {worst_category[0].replace('_', ' ').title()} ({worst_category[1]['mean']:.2f})\n"
 
     # Find challenging samples
-    challenging_samples = find_challenging_samples(results, 5)
+    challenging_samples = find_challenging_samples(current_results, 5)
     report += f"\n### Most Challenging Questions\n"
     for i, sample in enumerate(challenging_samples, 1):
         report += f"{i}. **Score: {sample['evaluation']['score_global']:.1f}** - {sample['question'][:100]}...\n"
 
     # Find best samples
-    best_samples = find_best_samples(results, 5)
+    best_samples = find_best_samples(current_results, 5)
     report += f"\n### Best Performing Questions\n"
     for i, sample in enumerate(best_samples, 1):
         report += f"{i}. **Score: {sample['evaluation']['score_global']:.1f}** - {sample['question'][:100]}...\n"
+
+    # RAG analysis if applicable
+    if "rag" in model_name.lower():
+        other_results = [
+            res for res in all_results if res["summary"]["model_name"] != model_name
+        ]
+        if other_results:
+            report += "\n## RAG Performance Analysis\n"
+            report += analyze_rag_performance(current_results, other_results)
 
     with open(output_file, "w", encoding="utf-8") as f:
         f.write(report)
 
     print(f"Analysis report saved to: {output_file}")
     return report
+
 
 
 def export_results_to_excel(results: Dict[str, Any], output_file: str = None):

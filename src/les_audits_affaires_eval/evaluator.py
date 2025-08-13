@@ -81,7 +81,12 @@ class LesAuditsAffairesEvaluator:
         try:
             # Generate response from the model being evaluated
             start_time = time.time()
-            model_response = await self.model_client.generate_response(question)
+            if os.getenv("EXTERNAL_PROVIDER", "").lower() == "rag":
+                model_response = await self.model_client.generate_response(
+                    question, sample_id=str(sample_idx)
+                )
+            else:
+                model_response = await self.model_client.generate_response(question)
             generation_time = time.time() - start_time
 
             logger.debug(f"Model response for sample {sample_idx}: {model_response[:200]}...")
@@ -167,7 +172,12 @@ class LesAuditsAffairesEvaluator:
         try:
             # Generate response from the model being evaluated
             start_time = time.time()
-            model_response = self.model_client.generate_response_sync(question)
+            if os.getenv("EXTERNAL_PROVIDER", "").lower() == "rag":
+                model_response = self.model_client.generate_response_sync(
+                    question, sample_id=str(sample_idx)
+                )
+            else:
+                model_response = self.model_client.generate_response_sync(question)
             generation_time = time.time() - start_time
 
             logger.debug(f"Model response for sample {sample_idx}: {model_response[:200]}...")

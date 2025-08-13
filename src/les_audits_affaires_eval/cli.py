@@ -6,6 +6,10 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+import jsonlines
+from datasets import load_dataset
+from tqdm import tqdm
+
 from .evaluation import LesAuditsAffairesEvaluator
 
 # Setup logging
@@ -123,28 +127,34 @@ def _cmd_analyze(args: argparse.Namespace) -> None:
         print("❌ No results files found. Use --results-file or run evaluation first.")
         sys.exit(1)
 
-    for results_file in results_files:
+    all_results = [load_evaluation_results(f) for f in results_files]
+
+    for i, results_file in enumerate(results_files):
         print(f"\n📊 Analyzing results from: {results_file}")
-        results = load_evaluation_results(results_file)
+        current_results = all_results[i]
         output_dir = Path(results_file).parent
 
         if args.report:
             print("📝 Generating analysis report...")
             report_path = output_dir / "analysis_report.md"
-            generate_analysis_report(results, output_file=str(report_path))
+            generate_analysis_report(current_results, all_results, output_file=str(report_path))
+            print(f"✅ Report generated at {report_path}")
 
         if args.plots:
             print("📈 Creating plots...")
             dist_plot_path = output_dir / "score_distributions.png"
             heatmap_path = output_dir / "correlation_heatmap.png"
-            create_score_distribution_plot(results, save_path=str(dist_plot_path))
-            create_correlation_heatmap(results, save_path=str(heatmap_path))
+            create_score_distribution_plot(current_results, save_path=str(dist_plot_path))
+            create_correlation_heatmap(current_results, save_path=str(heatmap_path))
             print(f"✅ Plots created in {output_dir}")
 
         if args.excel:
             print("📋 Exporting to Excel...")
             excel_path = output_dir / "evaluation_results.xlsx"
-            export_results_to_excel(results, output_file=str(excel_path))
+            export_results_to_excel(current_results, output_file=str(excel_path))
+            print(f"✅ Excel export completed at {excel_path}")
+
+
 
 
 def _cmd_test_evaluator(args: argparse.Namespace) -> None:

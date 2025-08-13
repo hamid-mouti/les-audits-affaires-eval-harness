@@ -86,7 +86,7 @@ Question: {question}"""
 
         return prompt_string
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
-    async def generate_response(self, question: str) -> str:
+    async def generate_response(self, question: str, sample_id: str) -> str:
         """Generate response from the RAG pipeline using the auth token."""
         if not self.session:
             raise RuntimeError("Session not initialized. Use async context manager.")
@@ -95,7 +95,7 @@ Question: {question}"""
 
         headers = {"Authorization": f"Bearer {self.access_token}"}
         prompt = self._format_legal_prompt(question)
-        payload = {"question": prompt}
+        payload = {"question": prompt, "sample_id": sample_id}
 
         try:
             async with self.session.post(self.endpoint, json=payload, headers=headers) as response:
@@ -115,14 +115,14 @@ Question: {question}"""
             logger.error(f"Error generating response from RAG pipeline: {e}")
             raise
 
-    def generate_response_sync(self, question: str) -> str:
+    def generate_response_sync(self, question: str, sample_id: str) -> str:
         """Synchronous version of generate_response with full auth flow."""
         self._fetch_token_sync() # Always fetch a fresh token for sync calls
         logger.info("Calling generate_response_sync with question: %s", question)
 
         headers = {"Authorization": f"Bearer {self.access_token}"}
         prompt = self._format_legal_prompt(question)
-        payload = {"question": prompt}
+        payload = {"question": prompt, "sample_id": sample_id}
         try:
             response = requests.post(self.endpoint, json=payload, headers=headers)
             response.raise_for_status()

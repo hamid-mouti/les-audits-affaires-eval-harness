@@ -129,7 +129,7 @@ dmypy.json
 .pyre/
 
 # Project specific
-results/
+results*/
 *.log
 progress_*.json
 temp_*
