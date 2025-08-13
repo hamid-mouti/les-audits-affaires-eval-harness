@@ -14,7 +14,14 @@ logger = logging.getLogger(__name__)
 class RAGClient:
     """Client for an external RAG pipeline with token-based authentication."""
 
-    def __init__(self, model: str, **kwargs):
+    def __init__(self, model: str = "gpt-4o", **kwargs):
+        """
+        Initialize the RAG client with model and environment variables for authentication.
+        :param model: The model to use for the RAG pipeline (default: "gpt-4o").
+        :param kwargs: Additional keyword arguments (not used but kept for compatibility).
+        :raises ValueError: If required environment variables are not set.
+        :raises Exception: If the authentication endpoint is unreachable or returns an error.
+        """
         self.model = model
         self.endpoint = os.getenv("MODEL_ENDPOINT")
         self.token_endpoint = os.getenv("RAG_TOKEN_ENDPOINT")
@@ -63,22 +70,22 @@ class RAGClient:
         # Create the specific user prompt that includes instructions + question
         user_prompt = f"""Tu es un expert juridique français spécialisé en droit des affaires et droit commercial. 
 
-ÉTAPE 1: Effectue d'abord une analyse complète avec tes tokens de raisonnement.
-
-ÉTAPE 2: Après ton analyse, termine par ces 5 éléments dans cet ordre précis:
-• Action Requise: [Action concrète à effectuer] parce que [référence légale précise avec numéro d'article]
-• Délai Legal: [Timeframe ou délai applicable] parce que [référence légale précise avec numéro d'article]
-• Documents Obligatoires: [Documents nécessaires] parce que [référence légale précise avec numéro d'article]
-• Impact Financier: [Coûts, frais ou impact financier] parce que [référence légale précise avec numéro d'article]
-• Conséquences Non-Conformité: [Risques en cas de non-respect] parce que [référence légale précise avec numéro d'article]
-
-RÈGLES OBLIGATOIRES:
-- Commence chaque ligne par "• [Catégorie]:"
-- Termine chaque point par "parce que [justification légale]"
-- Cite des articles précis (ex: "article 1193 du Code civil", "article L. 136-1 du Code de la consommation")
-- Utilise des détails spécifiques (délais en jours/mois, types de documents, montants)
-
-Question: {question}"""
+        ÉTAPE 1: Effectue d'abord une analyse complète avec tes tokens de raisonnement.
+        
+        ÉTAPE 2: Après ton analyse, termine par ces 5 éléments dans cet ordre précis:
+        • Action Requise: [Action concrète à effectuer] parce que [référence légale précise avec numéro d'article]
+        • Délai Legal: [Timeframe ou délai applicable] parce que [référence légale précise avec numéro d'article]
+        • Documents Obligatoires: [Documents nécessaires] parce que [référence légale précise avec numéro d'article]
+        • Impact Financier: [Coûts, frais ou impact financier] parce que [référence légale précise avec numéro d'article]
+        • Conséquences Non-Conformité: [Risques en cas de non-respect] parce que [référence légale précise avec numéro d'article]
+        
+        RÈGLES OBLIGATOIRES:
+        - Commence chaque ligne par "• [Catégorie]:"
+        - Termine chaque point par "parce que [justification légale]"
+        - Cite des articles précis (ex: "article 1193 du Code civil", "article L. 136-1 du Code de la consommation")
+        - Utilise des détails spécifiques (délais en jours/mois, types de documents, montants)
+        
+        Question: {question}"""
 
         # Format exactly like the working curl example with forced reasoning
         prompt_string = f"<|im_start|>user\n{user_prompt}<|im_end|>\n"
@@ -147,3 +154,68 @@ Question: {question}"""
         except Exception as e:
             logger.error(f"Error fetching token: {e}")
             raise
+
+    async def push_question(self, sample_id: str, question_text: str) -> dict:
+        if not self.session:
+            raise RuntimeError("Session not initialized.")
+        if not self.access_token:
+            await self._fetch_token()
+
+        url = self.endpoint
+        headers = {"Authorization": f"Bearer {self.access_token}", "Content-Type": "application/json"}
+        payload = {"sample_id": str(sample_id), "question": question_text}
+
+        try:
+            async with self.session.post(url, json=payload, headers=headers) as resp:
+                if resp.status == 403:
+                    await self._fetch_token()
+                    headers["Authorization"] = f"Bearer {self.access_token}"
+                    async with self.session.post(url, json=payload, headers=headers) as retry:
+                        retry.raise_for_status()
+                        return await retry.json()
+                resp.raise_for_status()
+                return await resp.json()
+        except Exception as e:
+            logger.error(f"Failed to push question {sample_id}: {e}")
+            raise
+
+    async def push_questions_bulk(self, items: list[tuple[str, str]], concurrent: int = 50) -> list[dict]:
+        sem = asyncio.Semaphore(concurrent)
+        results = [None] * len(items)
+
+        async def _one(i: int, pair: tuple[str, str]):
+            async with sem:
+                sid, q = pair
+                results[i] = await self.push_question(sid, q)
+
+        await asyncio.gather(*[_one(i, it) for i, it in enumerate(items)])
+        return results
+
+    async def push_questions_all(self, items: list[dict]) -> dict:
+        """
+        Send ALL questions in one request.
+        Payload is a JSON array: [{"id": "...", "question": "..."}, ...]
+        """
+        if not self.session:
+            raise RuntimeError("Session not initialized. Use async context manager.")
+        if not self.access_token:
+            await self._fetch_token()
+
+        url = self.endpoint
+        headers = {"Authorization": f"Bearer {self.access_token}", "Content-Type": "application/json"}
+
+        try:
+            async with self.session.post(url, json=items, headers=headers) as resp:
+                if resp.status == 403:
+                    # refresh once
+                    await self._fetch_token()
+                    headers["Authorization"] = f"Bearer {self.access_token}"
+                    async with self.session.post(url, json=items, headers=headers) as retry:
+                        retry.raise_for_status()
+                        return await retry.json()
+                resp.raise_for_status()
+                return await resp.json()
+        except Exception as e:
+            logger.error(f"Failed to push questions (bulk): {e}")
+            raise
+

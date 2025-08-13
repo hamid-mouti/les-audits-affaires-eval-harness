@@ -149,4 +149,7 @@ temp_*
 # Large files
 *.zip
 *.tar.gz
-*.h5 
+*.h5
+
+# generated text files
+output.txt

@@ -22,6 +22,9 @@ from .utils import (
     load_evaluation_results,
 )
 
+from .clients.rag_client import RAGClient
+from .config import DATASET_NAME, DATASET_SPLIT, CONCURRENT_REQUESTS
+
 
 def _cmd_run(args: argparse.Namespace) -> None:
     """Run the full evaluation based on CLI flags"""
@@ -265,6 +268,40 @@ def _cmd_info(args: argparse.Namespace) -> None:
     """
     )
 
+def _cmd_send_questions(args: argparse.Namespace) -> None:
+    ds = load_dataset(DATASET_NAME, split=DATASET_SPLIT)
+    data = list(ds)
+
+    start = args.start_from or 0
+    if start > 0:
+        data = data[start:]
+    if args.max_samples:
+        data = data[: args.max_samples]
+
+    # Build a single JSON array: [{"id": "...", "question": "..."}]
+    # Build a single JSON array: [{"id": <sample_idx>, "question": "..."}]
+    items = []
+    for i, sample in enumerate(data, start=start):  # <-- i is the absolute sample_idx
+        q = sample.get("question")
+        if not q:
+            continue
+        items.append({"id": i, "question": q})
+
+    async def _run():
+        print(f"🚀 Sending {len(items)} questions to RAG service...")
+        start_time = asyncio.get_event_loop().time()
+
+        async with RAGClient() as client:
+            resp = await client.push_questions_all(items)
+            logger.info(f"Response: {resp}")
+            msg = (resp or {}).get("message") or (resp or {}).get("detail") or str(resp)
+
+            duration = asyncio.get_event_loop().time() - start_time
+            logger.info(f"✅ Sent {len(items)} questions in {duration:.2f}s. Server: {msg}")
+
+    asyncio.run(_run())
+
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -317,6 +354,15 @@ Examples:
     # info command
     info_p = sub.add_parser("info", help="Show library information and configuration")
     info_p.set_defaults(func=_cmd_info)
+
+    # send-questions command
+    push_p = sub.add_parser(
+        "send-questions",
+        help="Send sampled questions (id + text) to the RAG service in one request",
+    )
+    push_p.add_argument("--max-samples", type=int, help="Limit number of samples")
+    push_p.add_argument("--start-from", type=int, default=0, help="Dataset index to start from")
+    push_p.set_defaults(func=_cmd_send_questions)
 
     return parser
 
