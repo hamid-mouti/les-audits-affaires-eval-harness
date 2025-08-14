@@ -265,30 +265,43 @@ def _cmd_info(args: argparse.Namespace) -> None:
   lae-eval test-evaluator                      # Test evaluator connection
   lae-eval analyze --plots --report           # Generate analysis and plots
   lae-eval info                               # Show this information
+  lae-eval send-questions --max-samples 50   # Send questions to RAG multi-batch endpoint
+
     """
     )
 
+
 def _cmd_send_questions(args: argparse.Namespace) -> None:
+    """Send questions to RAG service in batch mode"""
+    logger.info(f"Loading dataset: {DATASET_NAME} ({DATASET_SPLIT})")
     ds = load_dataset(DATASET_NAME, split=DATASET_SPLIT)
     data = list(ds)
+    logger.info(f"Loaded {len(data)} total samples")
 
     start = args.start_from or 0
     if start > 0:
+        logger.info(f"Starting from index {start}")
         data = data[start:]
     if args.max_samples:
+        logger.info(f"Limiting to {args.max_samples} samples")
         data = data[: args.max_samples]
 
-    # Build a single JSON array: [{"id": "...", "question": "..."}]
     # Build a single JSON array: [{"id": <sample_idx>, "question": "..."}]
     items = []
-    for i, sample in enumerate(data, start=start):  # <-- i is the absolute sample_idx
+    skipped = 0
+    for i, sample in enumerate(data, start=start):
         q = sample.get("question")
         if not q:
+            skipped += 1
             continue
         items.append({"id": i, "question": q})
 
+    if skipped:
+        logger.warning(f"Skipped {skipped} samples with empty questions")
+    logger.info(f"Prepared {len(items)} questions for sending")
+
     async def _run():
-        print(f"🚀 Sending {len(items)} questions to RAG service...")
+        logger.info(f"🚀 Sending {len(items)} questions to RAG service...")
         start_time = asyncio.get_event_loop().time()
 
         async with RAGClient() as client:
@@ -301,6 +314,61 @@ def _cmd_send_questions(args: argparse.Namespace) -> None:
 
     asyncio.run(_run())
 
+
+def _cmd_send_questions_concurrent(args: argparse.Namespace) -> None:
+    """Send questions to RAG service in batches with concurrent requests"""
+    logger.info(f"Loading dataset: {DATASET_NAME} ({DATASET_SPLIT})")
+    ds = load_dataset(DATASET_NAME, split=DATASET_SPLIT)
+    data = list(ds)
+    logger.info(f"Loaded {len(data)} total samples")
+
+    start = args.start_from or 0
+    if start > 0:
+        logger.info(f"Starting from index {start}")
+        data = data[start:]
+    if args.max_samples:
+        logger.info(f"Limiting to {args.max_samples} samples")
+        data = data[: args.max_samples]
+
+    # Build questions array
+    items = []
+    skipped = 0
+    for i, sample in enumerate(data, start=start):
+        q = sample.get("question")
+        if not q:
+            skipped += 1
+            continue
+        items.append({"id": i, "question": q})
+
+    if skipped:
+        logger.warning(f"Skipped {skipped} samples with empty questions")
+    logger.info(f"Prepared {len(items)} questions for sending")
+
+    async def _run():
+        logger.info(f"🚀 Sending questions in batches to RAG service...")
+        start_time = asyncio.get_event_loop().time()
+
+        # Split items into batches based on CONCURRENT_REQUESTS
+        batch_size = int(os.getenv("CONCURRENT_REQUESTS", 10))
+        batches = [items[i:i + batch_size] for i in range(0, len(items), batch_size)]
+        logger.info(f"Split into {len(batches)} batches of up to {batch_size} questions each")
+
+        total_processed = 0
+        async with RAGClient() as client:
+            for batch_num, batch in enumerate(batches, 1):
+                batch_start = asyncio.get_event_loop().time()
+                resp = await client.push_questions_all(batch)
+                batch_duration = asyncio.get_event_loop().time() - batch_start
+
+                total_processed += len(batch)
+                msg = (resp or {}).get("message") or (resp or {}).get("detail") or str(resp)
+                logger.info(
+                    f"Batch {batch_num}/{len(batches)}: Processed {len(batch)} questions in {batch_duration:.2f}s. Server: {msg}")
+
+            duration = asyncio.get_event_loop().time() - start_time
+            logger.info(f"✅ Sent {total_processed} questions in {duration:.2f}s total")
+
+    asyncio.run(_run())
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -363,6 +431,15 @@ Examples:
     push_p.add_argument("--max-samples", type=int, help="Limit number of samples")
     push_p.add_argument("--start-from", type=int, default=0, help="Dataset index to start from")
     push_p.set_defaults(func=_cmd_send_questions)
+
+    # send-questions-concurrent command
+    push_concurrent_p = sub.add_parser(
+        "send-questions-concurrent",
+        help="Send sampled questions to the RAG service in concurrent batches"
+    )
+    push_concurrent_p.add_argument("--max-samples", type=int, help="Limit number of samples")
+    push_concurrent_p.add_argument("--start-from", type=int, default=0, help="Dataset index to start from")
+    push_concurrent_p.set_defaults(func=_cmd_send_questions_concurrent)
 
     return parser
 
